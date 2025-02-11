@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 """
-server.py – A simple chat server for a client-server chat application.
+server.py - A simple chat server for a client-server chat application.
 
 This server supports two wire protocols: a custom binary protocol and a JSON-based protocol.
 It handles the following features:
@@ -24,6 +23,26 @@ import json
 import hashlib
 import fnmatch
 import argparse
+import os
+
+# =============================================================================
+# Secure Password Hashing Helper Function
+# =============================================================================
+def hash_password(password, salt=None):
+    """
+    Hashes a password using PBKDF2-HMAC-SHA256 with a salt.
+
+    Args:
+        password: The plaintext password.
+        salt: (Optional) A bytes object representing the salt. If None, a new 16-byte salt is generated.
+
+    Returns:
+        A tuple (salt_hex, hashed_hex) where both values are hexadecimal strings.
+    """
+    if salt is None:
+        salt = os.urandom(16)
+    hashed = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 400000)
+    return salt.hex(), hashed.hex()
 
 # =============================================================================
 # Protocol Implementations
@@ -33,42 +52,40 @@ class CustomProtocol:
     """
     CustomProtocol implements a custom binary protocol for message exchange.
 
-    Protocol Specification:
-      - 1 byte: Command code (unsigned char)
-      - 4 bytes: Payload length (big-endian unsigned int)
-      - Payload: Sequence of fields, where each field is:
-            - 2 bytes: Length of the field (unsigned short)
-            - Field data (UTF-8 encoded bytes)
+    Message format:
+      - 1 byte: Command code.
+      - 4 bytes: Payload length.
+      - Payload: Sequence of fields, each field is:
+            - 2 bytes: Field length.
+            - Field data (UTF-8 encoded).
     """
     def send_message(self, sock, command, fields):
         """
-        Encodes and sends a message over the provided socket.
+        Encodes and sends a message over the socket.
 
         Args:
-            sock: The socket object to send the message over.
-            command: The command code (integer).
-            fields: A list of strings to include in the payload.
+            sock: The socket object.
+            command: The command code (an integer).
+            fields: A list of string fields.
         """
         payload = b""
         for field in fields:
-            # Encode each field and prefix it with its 2-byte length.
             field_bytes = field.encode('utf-8')
             payload += struct.pack('!H', len(field_bytes))
             payload += field_bytes
-        # Pack the command (1 byte) and the payload length (4 bytes).
         header = struct.pack('!BI', command, len(payload))
         sock.sendall(header + payload)
 
     def recvall(self, sock, n):
         """
-        Helper function to receive exactly n bytes from the socket.
+        Receives exactly n bytes from the socket.
 
         Args:
             sock: The socket object.
-            n: Number of bytes to read.
+            n: Number of bytes to receive.
 
         Returns:
-            A bytes object containing the received data, or None if the connection is closed.
+            Bytes object containing the data, or None if the connection is closed.
         """
         data = b''
         while len(data) < n:
@@ -80,27 +97,19 @@ class CustomProtocol:
 
     def receive_message(self, sock):
         """
-        Receives and decodes a message from the socket.
-
-        Args:
-            sock: The socket object.
+        Receives and decodes a message from the socket using the custom protocol.
 
         Returns:
-            A tuple (command, fields), where:
-              - command: The command code (integer).
-              - fields: A list of strings extracted from the payload.
+            A tuple (command, fields) where command is an integer and fields is a list of strings.
             Returns (None, None) if the connection is closed.
         """
-        # Read the header (1 byte command and 4 bytes payload length).
         header = self.recvall(sock, 5)
         if not header:
             return None, None
         command, length = struct.unpack('!BI', header)
-        # Read the payload using the length from the header.
         payload = self.recvall(sock, length)
         fields = []
         offset = 0
-        # Extract each field from the payload.
         while offset < len(payload):
             if offset + 2 > len(payload):
                 break
@@ -115,37 +124,37 @@ class JSONProtocol:
     """
     JSONProtocol implements a JSON-based protocol for message exchange.
 
-    Protocol Specification:
-      - 4 bytes: Length of the JSON payload (big-endian unsigned int)
-      - JSON payload: A UTF-8 encoded JSON string that represents a dictionary with keys:
+    Message format:
+      - 4 bytes: Length of JSON payload.
+      - JSON payload: UTF-8 encoded JSON string that represents a dictionary with keys:
             "command": <command string>
             "fields": A list of strings.
     """
     def send_message(self, sock, command, fields):
         """
-        Encodes and sends a JSON message over the provided socket.
+        Encodes and sends a JSON message over the socket.
 
         Args:
             sock: The socket object.
-            command: The command name (string).
+            command: The command name (a string).
             fields: A list of string fields.
         """
         msg = {"command": command, "fields": fields}
         msg_str = json.dumps(msg)
         msg_bytes = msg_str.encode('utf-8')
-        header = struct.pack('!I', len(msg_bytes))  # 4-byte length header
+        header = struct.pack('!I', len(msg_bytes))
         sock.sendall(header + msg_bytes)
 
     def recvall(self, sock, n):
         """
-        Reads exactly n bytes from the socket.
+        Receives exactly n bytes from the socket.
 
         Args:
             sock: The socket object.
             n: Number of bytes to read.
 
         Returns:
-            A bytes object with the received data, or None if the connection is closed.
+            A bytes object containing the data, or None if the connection is closed.
         """
         data = b''
         while len(data) < n:
@@ -158,9 +167,6 @@ class JSONProtocol:
     def receive_message(self, sock):
         """
         Receives and decodes a JSON message from the socket.
-
-        Args:
-            sock: The socket object.
 
         Returns:
             A tuple (command, fields) where command is a string and fields is a list of strings.
@@ -180,22 +186,9 @@ class JSONProtocol:
         return command, fields
 
 # =============================================================================
-# Helper Functions and Global Constants
+# Command constants for the custom binary protocol.
 # =============================================================================
 
-def hash_password(password):
-    """
-    Returns a SHA-256 hash of the given password.
-
-    Args:
-        password: The plaintext password.
-
-    Returns:
-        A hexadecimal string representing the hashed password.
-    """
-    return hashlib.sha256(password.encode('utf-8')).hexdigest()
-
-# Command constants for the custom binary protocol.
 CMD_CREATE_ACCOUNT  = 1
 CMD_LOGIN           = 2
 CMD_LIST_ACCOUNTS   = 3
@@ -205,8 +198,6 @@ CMD_DELETE_MESSAGES = 6
 CMD_DELETE_ACCOUNT  = 7
 CMD_NEW_MESSAGE     = 8
 CMD_RESPONSE        = 100
-
-# For the JSON protocol, command names (strings) will be used instead.
 
 # =============================================================================
 # Data Model for User Accounts
@@ -218,21 +209,23 @@ class Account:
 
     Attributes:
         username: The unique username.
-        hashed_password: The hashed password.
-        messages: List of messages (each a tuple: (msg_id, sender, text)).
-        next_msg_id: The next available message ID.
-        online: Boolean indicating whether the user is logged in.
+        salt: Hexadecimal string representation of the random salt.
+        hashed_password: Hexadecimal string of the password hash.
+        messages: List of messages in the form (msg_id, sender, text).
+        next_msg_id: Counter for assigning message IDs.
+        online: Boolean flag indicating if the user is currently logged in.
         conn: The socket connection associated with the user (if online).
-        protocol: The protocol object (CustomProtocol or JSONProtocol) for communication.
+        protocol: The protocol instance used for communication.
     """
-    def __init__(self, username, hashed_password):
+    def __init__(self, username, salt, hashed_password):
         self.username = username
-        self.hashed_password = hashed_password
-        self.messages = []   # Stored messages: list of tuples (msg_id, sender, text)
-        self.next_msg_id = 1 # Counter for assigning message IDs
-        self.online = False  # User online status
-        self.conn = None     # Associated socket if online
-        self.protocol = None # Protocol instance used for this account
+        self.salt = salt              # Salt stored as a hex string.
+        self.hashed_password = hashed_password  # Hashed password as a hex string.
+        self.messages = []   # List to store messages: (msg_id, sender, text).
+        self.next_msg_id = 1
+        self.online = False
+        self.conn = None
+        self.protocol = None
 
 # =============================================================================
 # Main Chat Server Class
@@ -242,19 +235,26 @@ class ChatServer:
     """
     Main server class for the chat application.
 
-    Attributes:
-        host: The hostname or IP address to bind.
-        port: The port number to bind.
-        accounts: A dictionary mapping usernames to Account objects.
-        lock: A threading lock for synchronizing access to shared data.
-        protocol_type: The type of protocol ("custom" or "json") to use.
-        protocol: Instance of the chosen protocol implementation.
+    This class accepts incoming client connections and handles commands for account
+    creation, login, listing accounts, sending messages, reading messages, deleting messages,
+    and deleting an account. It supports both a custom binary protocol and a JSON-based protocol.
+
+    Passwords received from clients are in plaintext; the server salts and hashes them using
+    PBKDF2-HMAC-SHA256.
     """
     def __init__(self, host, port, protocol_type="custom"):
+        """
+        Initializes the chat server.
+
+        Args:
+            host: The hostname or IP address to bind.
+            port: The port number to bind.
+            protocol_type: Either "custom" or "json" to select the protocol.
+        """
         self.host = host
         self.port = port
-        self.accounts = {}  # Stores user accounts (username -> Account)
-        self.lock = threading.Lock()  # Lock for thread-safe operations
+        self.accounts = {}  # Dictionary mapping usernames to Account objects.
+        self.lock = threading.Lock()  # Lock for thread-safe access to shared data.
         self.protocol_type = protocol_type
         if protocol_type == "custom":
             self.protocol = CustomProtocol()
@@ -263,11 +263,11 @@ class ChatServer:
 
     def start(self):
         """
-        Starts the chat server and listens for incoming client connections.
-        Each connection is handled in a separate thread.
+        Starts the chat server, listens for incoming client connections, and dispatches them
+        to separate threads.
         """
         server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # Enable address reuse to avoid "Address already in use" errors.
+        # Enable address reuse to prevent "Address already in use" errors.
         server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_sock.bind((self.host, self.port))
         server_sock.listen(5)
@@ -283,48 +283,52 @@ class ChatServer:
         """
         Handles communication with a connected client.
 
-        The client must first log in or create an account.
-        This method processes commands for account creation, login, sending messages,
-        reading messages, deleting messages, and deleting accounts.
+        The client must first log in or create an account. This method processes commands for:
+          - Account creation (CREATE_ACCOUNT)
+          - Login (LOGIN)
+          - Listing accounts (LIST_ACCOUNTS)
+          - Sending messages (SEND_MESSAGE)
+          - Reading messages (READ_MESSAGES)
+          - Deleting messages (DELETE_MESSAGES)
+          - Deleting an account (DELETE_ACCOUNT)
 
         Args:
             conn: The socket connection to the client.
         """
-        logged_in_user = None  # Track which user (if any) is logged in for this connection.
+        logged_in_user = None  # Track the username of the client once logged in.
         try:
             while True:
-                # Receive a message from the client.
                 command, fields = self.protocol.receive_message(conn)
                 if command is None:
                     print("Connection closed by client.")
                     break
 
-                # Process commands based on the protocol type.
                 if self.protocol_type == "custom":
                     if command == CMD_CREATE_ACCOUNT:
-                        # Expected fields: [username, hashed_password]
                         if len(fields) < 2:
                             self.send_error(conn, "Invalid fields for CREATE_ACCOUNT")
                             continue
-                        username, hashed_pw = fields[0], fields[1]
+                        username, password = fields[0], fields[1]
                         with self.lock:
                             if username in self.accounts:
                                 self.send_error(conn, "Account exists; please login.")
                             else:
-                                self.accounts[username] = Account(username, hashed_pw)
+                                salt, hashed_pw = hash_password(password)
+                                self.accounts[username] = Account(username, salt, hashed_pw)
                                 self.send_response(conn, "Account created successfully.")
                     elif command == CMD_LOGIN:
-                        # Expected fields: [username, hashed_password]
                         if len(fields) < 2:
                             self.send_error(conn, "Invalid fields for LOGIN")
                             continue
-                        username, hashed_pw = fields[0], fields[1]
+                        username, password = fields[0], fields[1]
                         with self.lock:
                             if username not in self.accounts:
                                 self.send_error(conn, "Account does not exist.")
                             else:
                                 account = self.accounts[username]
-                                if account.hashed_password != hashed_pw:
+                                salt_bytes = bytes.fromhex(account.salt)
+                                _, computed_hash = hash_password(password, salt_bytes)
+                                if account.hashed_password != computed_hash:
                                     self.send_error(conn, "Incorrect password.")
                                 else:
                                     logged_in_user = username
@@ -334,13 +338,11 @@ class ChatServer:
                                     unread_count = len(account.messages)
                                     self.send_response(conn, f"Login successful. Unread messages: {unread_count}")
                     elif command == CMD_LIST_ACCOUNTS:
-                        # Optional field: [wildcard] (default to "*" if not provided)
                         pattern = fields[0] if fields else "*"
                         with self.lock:
                             matching = [uname for uname in self.accounts if fnmatch.fnmatch(uname, pattern)]
                         self.send_response(conn, "Accounts list", *matching)
                     elif command == CMD_SEND_MESSAGE:
-                        # Expected fields: [recipient, message_text]
                         if logged_in_user is None:
                             self.send_error(conn, "Please login first.")
                             continue
@@ -357,7 +359,7 @@ class ChatServer:
                                 recipient_account.next_msg_id += 1
                                 message = (str(msg_id), logged_in_user, message_text)
                                 recipient_account.messages.append(message)
-                                # If recipient is online, immediately push the message.
+                                # If the recipient is online, immediately push the message.
                                 if recipient_account.online and recipient_account.conn:
                                     try:
                                         self.protocol.send_message(recipient_account.conn, CMD_NEW_MESSAGE,
@@ -366,7 +368,6 @@ class ChatServer:
                                         print(f"Error delivering immediate message: {e}")
                                 self.send_response(conn, "Message sent.")
                     elif command == CMD_READ_MESSAGES:
-                        # Expected field: [number] indicating how many messages to read.
                         if logged_in_user is None:
                             self.send_error(conn, "Please login first.")
                             continue
@@ -380,7 +381,6 @@ class ChatServer:
                         msgs_formatted = [f"{msg[0]}: {msg[1]}: {msg[2]}" for msg in msgs]
                         self.send_response(conn, "Messages", *msgs_formatted)
                     elif command == CMD_DELETE_MESSAGES:
-                        # Expected fields: list of message IDs to delete.
                         if logged_in_user is None:
                             self.send_error(conn, "Please login first.")
                             continue
@@ -392,17 +392,18 @@ class ChatServer:
                             after = len(account.messages)
                         self.send_response(conn, f"Deleted {before - after} messages.")
                     elif command == CMD_DELETE_ACCOUNT:
-                        # Expected fields: [username, hashed_password]
                         if len(fields) < 2:
                             self.send_error(conn, "Invalid fields for DELETE_ACCOUNT")
                             continue
-                        username, hashed_pw = fields[0], fields[1]
+                        username, password = fields[0], fields[1]
                         with self.lock:
                             if username not in self.accounts:
                                 self.send_error(conn, "Account does not exist.")
                             else:
                                 account = self.accounts[username]
-                                if account.hashed_password != hashed_pw:
+                                salt_bytes = bytes.fromhex(account.salt)
+                                _, computed_hash = hash_password(password, salt_bytes)
+                                if account.hashed_password != computed_hash:
                                     self.send_error(conn, "Incorrect password.")
                                 else:
                                     del self.accounts[username]
@@ -412,29 +413,32 @@ class ChatServer:
                     else:
                         self.send_error(conn, "Unknown command.")
                 else:
-                    # JSON protocol processing (commands as strings)
+                    # JSON protocol processing (similar to custom protocol, but commands are strings)
                     if command == "CREATE_ACCOUNT":
                         if len(fields) < 2:
                             self.send_error(conn, "Invalid fields for CREATE_ACCOUNT")
                             continue
-                        username, hashed_pw = fields[0], fields[1]
+                        username, password = fields[0], fields[1]
                         with self.lock:
                             if username in self.accounts:
                                 self.send_error(conn, "Account exists; please login.")
                             else:
-                                self.accounts[username] = Account(username, hashed_pw)
+                                salt, hashed_pw = hash_password(password)
+                                self.accounts[username] = Account(username, salt, hashed_pw)
                                 self.send_response(conn, "Account created successfully.")
                     elif command == "LOGIN":
                         if len(fields) < 2:
                             self.send_error(conn, "Invalid fields for LOGIN")
                             continue
-                        username, hashed_pw = fields[0], fields[1]
+                        username, password = fields[0], fields[1]
                         with self.lock:
                             if username not in self.accounts:
                                 self.send_error(conn, "Account does not exist.")
                             else:
                                 account = self.accounts[username]
-                                if account.hashed_password != hashed_pw:
+                                salt_bytes = bytes.fromhex(account.salt)
+                                _, computed_hash = hash_password(password, salt_bytes)
+                                if account.hashed_password != computed_hash:
                                     self.send_error(conn, "Incorrect password.")
                                 else:
                                     logged_in_user = username
@@ -500,13 +504,15 @@ class ChatServer:
                         if len(fields) < 2:
                             self.send_error(conn, "Invalid fields for DELETE_ACCOUNT")
                             continue
-                        username, hashed_pw = fields[0], fields[1]
+                        username, password = fields[0], fields[1]
                         with self.lock:
                             if username not in self.accounts:
                                 self.send_error(conn, "Account does not exist.")
                             else:
                                 account = self.accounts[username]
-                                if account.hashed_password != hashed_pw:
+                                salt_bytes = bytes.fromhex(account.salt)
+                                _, computed_hash = hash_password(password, salt_bytes)
+                                if account.hashed_password != computed_hash:
                                     self.send_error(conn, "Incorrect password.")
                                 else:
                                     del self.accounts[username]
@@ -518,7 +524,7 @@ class ChatServer:
         except Exception as e:
             print(f"Exception in client handler: {e}")
         finally:
-            # If the client was logged in, mark the account as offline.
+            # Mark the account as offline when the connection is closed.
             if logged_in_user:
                 with self.lock:
                     if logged_in_user in self.accounts:
@@ -532,10 +538,9 @@ class ChatServer:
 
         Args:
             conn: The socket connection to the client.
-            message: The main response message.
+            message: The primary response message.
             extra_fields: Additional fields to include in the response.
         """
-        # The first field indicates success ("OK").
         if self.protocol_type == "custom":
             self.protocol.send_message(conn, CMD_RESPONSE, ["OK", message] + list(extra_fields))
         else:
@@ -547,16 +552,12 @@ class ChatServer:
 
         Args:
             conn: The socket connection to the client.
-            error_message: The error message.
+            error_message: A descriptive error message.
         """
         if self.protocol_type == "custom":
             self.protocol.send_message(conn, CMD_RESPONSE, ["ERROR", error_message])
         else:
             self.protocol.send_message(conn, "RESPONSE", ["ERROR", error_message])
-
-# =============================================================================
-# Main Entry Point for the Server
-# =============================================================================
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Chat Server")
@@ -566,6 +567,5 @@ if __name__ == "__main__":
                         help="Wire protocol to use (custom or json)")
     args = parser.parse_args()
     
-    # Create and start the chat server.
     server = ChatServer(args.host, args.port, protocol_type=args.protocol)
     server.start()

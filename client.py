@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 """
-client.py – A simple chat client with a Tkinter graphical interface.
+client.py - A simple chat client with a Tkinter graphical interface.
 
 This client connects to the chat server using either a custom binary protocol
 or a JSON-based protocol. It provides functionalities for:
@@ -24,7 +23,6 @@ import tkinter as tk
 import tkinter.scrolledtext as st
 import tkinter.messagebox as messagebox
 import tkinter.simpledialog as simpledialog
-import hashlib
 import argparse
 
 # =============================================================================
@@ -44,12 +42,12 @@ class CustomProtocol:
     """
     def send_message(self, sock, command, fields):
         """
-        Encodes and sends a message over the socket.
+        Encodes and sends a message over the given socket using the custom binary protocol.
 
         Args:
-            sock: The socket to send the message on.
-            command: The command code (integer).
-            fields: List of strings for message fields.
+            sock: The socket to send data on.
+            command: The command code (an integer).
+            fields: A list of string fields to include in the message payload.
         """
         payload = b""
         for field in fields:
@@ -64,11 +62,11 @@ class CustomProtocol:
         Receives exactly n bytes from the socket.
 
         Args:
-            sock: The socket.
-            n: Number of bytes to read.
+            sock: The socket from which to receive.
+            n: The number of bytes to receive.
 
         Returns:
-            Bytes object containing the received data, or None if connection is closed.
+            A bytes object with the received data, or None if the connection is closed.
         """
         data = b''
         while len(data) < n:
@@ -80,11 +78,11 @@ class CustomProtocol:
 
     def receive_message(self, sock):
         """
-        Receives and decodes a message from the socket.
+        Receives and decodes a message from the socket using the custom protocol.
 
         Returns:
             A tuple (command, fields) where command is an integer and fields is a list of strings.
-            Returns (None, None) if connection is closed.
+            Returns (None, None) if the connection is closed.
         """
         header = self.recvall(sock, 5)
         if not header:
@@ -108,17 +106,17 @@ class JSONProtocol:
     JSONProtocol implements a JSON-based protocol for communication.
 
     Message format:
-      - 4 bytes: Length of JSON payload.
-      - JSON payload: UTF-8 encoded JSON string with keys "command" and "fields".
+      - 4 bytes: Length of the JSON payload.
+      - JSON payload: A UTF-8 encoded JSON string with keys "command" and "fields".
     """
     def send_message(self, sock, command, fields):
         """
-        Encodes and sends a JSON message over the socket.
+        Encodes and sends a JSON message over the given socket.
 
         Args:
-            sock: The socket.
-            command: Command name (string).
-            fields: List of strings for message fields.
+            sock: The socket to send the message on.
+            command: The command name (a string).
+            fields: A list of string fields.
         """
         msg = {"command": command, "fields": fields}
         msg_str = json.dumps(msg)
@@ -131,11 +129,11 @@ class JSONProtocol:
         Receives exactly n bytes from the socket.
 
         Args:
-            sock: The socket.
-            n: Number of bytes to receive.
+            sock: The socket to read from.
+            n: The number of bytes to read.
 
         Returns:
-            Bytes object containing the data, or None if connection is closed.
+            A bytes object containing the received data, or None if the connection is closed.
         """
         data = b''
         while len(data) < n:
@@ -167,22 +165,9 @@ class JSONProtocol:
         return command, fields
 
 # =============================================================================
-# Helper Function
+# Command constants for the custom binary protocol.
 # =============================================================================
 
-def hash_password(password):
-    """
-    Returns a SHA-256 hash of the given password.
-
-    Args:
-        password: The plaintext password.
-
-    Returns:
-        The hexadecimal hash of the password.
-    """
-    return hashlib.sha256(password.encode('utf-8')).hexdigest()
-
-# Command constants for the custom binary protocol.
 CMD_CREATE_ACCOUNT  = 1
 CMD_LOGIN           = 2
 CMD_LIST_ACCOUNTS   = 3
@@ -199,27 +184,24 @@ CMD_RESPONSE        = 100
 
 class ChatClient:
     """
-    ChatClient implements a client for the chat application with a Tkinter GUI.
+    ChatClient implements a GUI-based client for the chat application.
 
-    Features include:
-      - Account creation and login.
-      - Sending messages (format: recipient: message text).
-      - Listing accounts.
-      - Reading messages.
-      - Deleting messages.
-      - Deleting account.
+    This class provides a Tkinter interface that allows the user to create an account,
+    log in, send messages, list accounts, read stored messages, delete messages, and delete the account.
+    It supports both a custom binary protocol and a JSON-based protocol.
 
-    Attributes:
-        host: The server hostname.
-        port: The server port.
-        sock: The socket connection to the server.
-        protocol_type: "custom" or "json" specifying the protocol to use.
-        protocol: Instance of the chosen protocol (CustomProtocol or JSONProtocol).
-        username: The logged in username.
-        running: Flag to control the listener thread.
-        root: The Tkinter root window.
+    Note:
+      The client sends the plaintext password. The server salts and hashes the password.
     """
     def __init__(self, host, port, protocol_type="custom"):
+        """
+        Initializes the ChatClient.
+
+        Args:
+            host: The server's hostname.
+            port: The server's port number.
+            protocol_type: Either "custom" or "json" to select the communication protocol.
+        """
         self.host = host
         self.port = port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -229,26 +211,23 @@ class ChatClient:
             self.protocol = CustomProtocol()
         else:
             self.protocol = JSONProtocol()
-        self.username = None  # Logged in username
-        self.running = True   # Flag for the listener thread
-        # Start the listener thread to receive messages from the server.
+        self.username = None  # The currently logged-in username
+        self.running = True   # Flag to control the listener thread
+        # Start a background thread to listen for messages from the server.
         self.listener_thread = threading.Thread(target=self.listen_to_server)
         self.listener_thread.daemon = True
         self.listener_thread.start()
-        # Initialize the GUI.
+        # Initialize the Tkinter GUI.
         self.root = tk.Tk()
         self.root.title("Chat Client")
         self.setup_gui()
 
     def setup_gui(self):
         """
-        Sets up the graphical user interface using Tkinter.
-
-        The GUI consists of two main frames:
-          - A login frame for entering username/password and creating an account.
-          - A chat frame for sending messages, reading messages, and account actions.
+        Sets up the graphical user interface with two frames:
+          - A login frame for account creation and login.
+          - A chat frame for sending messages and account management.
         """
-        # Create frames.
         self.frame_login = tk.Frame(self.root)
         self.frame_chat = tk.Frame(self.root)
         
@@ -283,45 +262,47 @@ class ChatClient:
 
     def login(self):
         """
-        Attempts to log in using the provided username and password.
-        Sends a LOGIN command to the server.
-        On successful login, hides the login frame and shows the chat frame.
+        Attempts to log in with the provided username and password.
+
+        The plaintext password is sent to the server (which will apply salting and hashing).
+        On a successful login, the login frame is hidden and the chat frame is shown.
         """
         username = self.entry_username.get().strip()
         password = self.entry_password.get().strip()
         if not username or not password:
             messagebox.showerror("Error", "Username and password required")
             return
-        hashed_pw = hash_password(password)
+        # Send the plaintext password.
         if self.protocol_type == "custom":
-            self.protocol.send_message(self.sock, CMD_LOGIN, [username, hashed_pw])
+            self.protocol.send_message(self.sock, CMD_LOGIN, [username, password])
         else:
-            self.protocol.send_message(self.sock, "LOGIN", [username, hashed_pw])
-        # Store the username and switch the GUI frames.
+            self.protocol.send_message(self.sock, "LOGIN", [username, password])
         self.username = username
         self.frame_login.pack_forget()
         self.frame_chat.pack()
 
     def create_account(self):
         """
-        Sends a CREATE_ACCOUNT command to the server with the provided username and password.
+        Sends a request to create an account using the provided username and password.
+
+        The plaintext password is sent to the server; the server will salt and hash it.
         """
         username = self.entry_username.get().strip()
         password = self.entry_password.get().strip()
         if not username or not password:
             messagebox.showerror("Error", "Username and password required")
             return
-        hashed_pw = hash_password(password)
         if self.protocol_type == "custom":
-            self.protocol.send_message(self.sock, CMD_CREATE_ACCOUNT, [username, hashed_pw])
+            self.protocol.send_message(self.sock, CMD_CREATE_ACCOUNT, [username, password])
         else:
-            self.protocol.send_message(self.sock, "CREATE_ACCOUNT", [username, hashed_pw])
+            self.protocol.send_message(self.sock, "CREATE_ACCOUNT", [username, password])
         messagebox.showinfo("Info", "Account creation requested. Please login.")
 
     def send_message(self):
         """
         Sends a message to another user.
-        The message must be entered in the format "recipient: message text".
+
+        The message must be in the format "recipient: message text".
         """
         text = self.entry_message.get().strip()
         if not text:
@@ -340,7 +321,7 @@ class ChatClient:
 
     def list_accounts(self):
         """
-        Prompts the user for a wildcard pattern and sends a LIST_ACCOUNTS command.
+        Prompts the user for a wildcard pattern and sends a request to list matching accounts.
         """
         pattern = simpledialog.askstring("List Accounts", "Enter wildcard pattern (or leave blank for all):")
         if pattern is None:
@@ -352,7 +333,7 @@ class ChatClient:
 
     def read_messages(self):
         """
-        Prompts the user for the number of messages to read and sends a READ_MESSAGES command.
+        Prompts the user for the number of messages to read and sends a request to the server.
         """
         num = simpledialog.askstring("Read Messages", "How many messages to read?")
         if num is None or not num.isdigit():
@@ -364,7 +345,7 @@ class ChatClient:
 
     def delete_messages(self):
         """
-        Prompts the user for message IDs (comma separated) and sends a DELETE_MESSAGES command.
+        Prompts the user for message IDs to delete and sends a deletion request to the server.
         """
         ids = simpledialog.askstring("Delete Messages", "Enter message IDs to delete (comma separated):")
         if ids is None:
@@ -377,36 +358,36 @@ class ChatClient:
 
     def delete_account(self):
         """
-        Prompts for confirmation and sends a DELETE_ACCOUNT command to delete the user's account.
+        Prompts the user for confirmation and sends a request to delete the account.
+
+        The plaintext password is sent to the server (which will verify it using the salted hash).
         """
         if messagebox.askyesno("Delete Account", "Are you sure you want to delete your account?"):
             password = self.entry_password.get().strip()
-            hashed_pw = hash_password(password)
             if self.protocol_type == "custom":
-                self.protocol.send_message(self.sock, CMD_DELETE_ACCOUNT, [self.username, hashed_pw])
+                self.protocol.send_message(self.sock, CMD_DELETE_ACCOUNT, [self.username, password])
             else:
-                self.protocol.send_message(self.sock, "DELETE_ACCOUNT", [self.username, hashed_pw])
+                self.protocol.send_message(self.sock, "DELETE_ACCOUNT", [self.username, password])
             self.sock.close()
             self.root.quit()
 
     def listen_to_server(self):
         """
-        Listens for incoming messages from the server on a background thread.
-        Processes responses and displays them in the chat text area.
+        Runs in a background thread to listen for and process incoming messages from the server.
+
+        Processes both response messages and asynchronous notifications (like new messages).
         """
         while self.running:
             try:
                 command, fields = self.protocol.receive_message(self.sock)
                 if command is None:
                     break
-                # Process messages based on the protocol type.
                 if self.protocol_type == "custom":
                     if command == CMD_RESPONSE:
                         status = fields[0]
                         msg = fields[1] if len(fields) > 1 else ""
                         self.append_text(f"Server response: {status} – {msg}\n")
                         if len(fields) > 2:
-                            # Display additional fields on separate lines.
                             self.append_text("\n".join(fields[2:]) + "\n")
                     elif command == CMD_NEW_MESSAGE:
                         sender = fields[0]
@@ -432,7 +413,7 @@ class ChatClient:
 
     def append_text(self, text):
         """
-        Appends text to the chat text area in a thread-safe manner.
+        Appends text to the chat display area in a thread-safe manner.
 
         Args:
             text: The text string to append.
@@ -444,14 +425,10 @@ class ChatClient:
 
     def run(self):
         """
-        Runs the Tkinter main loop to start the GUI.
+        Runs the Tkinter main loop.
         """
         self.root.mainloop()
         self.running = False
-
-# =============================================================================
-# Main Entry Point for the Client
-# =============================================================================
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Chat Client")
@@ -461,6 +438,5 @@ if __name__ == "__main__":
                         help="Wire protocol to use (custom or json)")
     args = parser.parse_args()
 
-    # Create and run the chat client.
     client = ChatClient(args.host, args.port, protocol_type=args.protocol)
     client.run()

@@ -24,11 +24,10 @@ import threading
 import time
 import json
 import struct
-import hashlib
 
 # Import the chat server code and protocol classes.
 # It is assumed that these classes are defined in server.py.
-from server import ChatServer, CustomProtocol, JSONProtocol, hash_password, \
+from server import ChatServer, CustomProtocol, JSONProtocol, \
     CMD_CREATE_ACCOUNT, CMD_LOGIN, CMD_LIST_ACCOUNTS, CMD_SEND_MESSAGE, \
     CMD_READ_MESSAGES, CMD_DELETE_MESSAGES, CMD_DELETE_ACCOUNT, CMD_RESPONSE, CMD_NEW_MESSAGE
 
@@ -110,12 +109,11 @@ def login_client(sock, protocol, username, password, use_create=False):
     Returns:
         The response tuple (command, fields) from the server.
     """
-    hashed_pw = hash_password(password)
     if use_create:
         cmd = CMD_CREATE_ACCOUNT if isinstance(protocol, CustomProtocol) else "CREATE_ACCOUNT"
     else:
         cmd = CMD_LOGIN if isinstance(protocol, CustomProtocol) else "LOGIN"
-    return send_and_wait_response(sock, protocol, cmd, [username, hashed_pw])
+    return send_and_wait_response(sock, protocol, cmd, [username, password])
 
 # -----------------------------------------------------------------------------
 # Test class for the Custom Binary Protocol
@@ -157,7 +155,7 @@ class TestChatServerCustom(unittest.TestCase):
         sock, proto = self.connect_client()
         try:
             resp_cmd, resp_fields = send_and_wait_response(sock, proto, CMD_CREATE_ACCOUNT,
-                                                            ["alice", hash_password("secret")])
+                                                            ["alice", "secret"])
             self.assertIsNotNone(resp_cmd, "Did not receive any response")
             self.assertEqual(resp_fields[0], "OK", "Expected OK response on account creation")
             self.assertIn("Account created", resp_fields[1])
@@ -169,9 +167,9 @@ class TestChatServerCustom(unittest.TestCase):
         sock, proto = self.connect_client()
         try:
             send_and_wait_response(sock, proto, CMD_CREATE_ACCOUNT,
-                                   ["bob", hash_password("password")])
+                                   ["bob", "password"])
             resp_cmd, resp_fields = send_and_wait_response(sock, proto, CMD_LOGIN,
-                                                           ["bob", hash_password("password")])
+                                                           ["bob", "password"])
             self.assertIsNotNone(resp_cmd, "No response received on login")
             self.assertEqual(resp_fields[0], "OK", "Expected OK response on successful login")
             self.assertIn("Login successful", resp_fields[1])
@@ -183,9 +181,9 @@ class TestChatServerCustom(unittest.TestCase):
         sock, proto = self.connect_client()
         try:
             send_and_wait_response(sock, proto, CMD_CREATE_ACCOUNT,
-                                   ["charlie", hash_password("mypassword")])
+                                   ["charlie", "mypassword"])
             resp_cmd, resp_fields = send_and_wait_response(sock, proto, CMD_LOGIN,
-                                                           ["charlie", hash_password("wrongpass")])
+                                                           ["charlie", "wrongpass"])
             self.assertIsNotNone(resp_cmd, "No response received on login attempt")
             self.assertEqual(resp_fields[0], "ERROR", "Expected ERROR response on wrong password")
             self.assertIn("Incorrect password", resp_fields[1])
@@ -197,7 +195,7 @@ class TestChatServerCustom(unittest.TestCase):
         for user, pwd in [("dave", "pass1"), ("eve", "pass2")]:
             sock, proto = self.connect_client()
             try:
-                send_and_wait_response(sock, proto, CMD_CREATE_ACCOUNT, [user, hash_password(pwd)])
+                send_and_wait_response(sock, proto, CMD_CREATE_ACCOUNT, [user, pwd])
             finally:
                 sock.close()
         sock, proto = self.connect_client()
@@ -221,10 +219,10 @@ class TestChatServerCustom(unittest.TestCase):
         sock_alice, proto = self.connect_client()
         sock_frank, _ = self.connect_client()
         try:
-            send_and_wait_response(sock_alice, proto, CMD_CREATE_ACCOUNT, ["alice", hash_password("alicepw")])
-            send_and_wait_response(sock_alice, proto, CMD_LOGIN, ["alice", hash_password("alicepw")])
-            send_and_wait_response(sock_frank, proto, CMD_CREATE_ACCOUNT, ["frank", hash_password("frankpw")])
-            send_and_wait_response(sock_frank, proto, CMD_LOGIN, ["frank", hash_password("frankpw")])
+            send_and_wait_response(sock_alice, proto, CMD_CREATE_ACCOUNT, ["alice", "alicepw"])
+            send_and_wait_response(sock_alice, proto, CMD_LOGIN, ["alice", "alicepw"])
+            send_and_wait_response(sock_frank, proto, CMD_CREATE_ACCOUNT, ["frank", "frankpw"])
+            send_and_wait_response(sock_frank, proto, CMD_LOGIN, ["frank", "frankpw"])
             # alice sends a message to frank.
             send_and_wait_response(sock_alice, proto, CMD_SEND_MESSAGE, ["frank", "Hello Frank!"])
             # Drain any asynchronous push messages on frank's socket.
@@ -250,10 +248,10 @@ class TestChatServerCustom(unittest.TestCase):
         sock_sender, proto = self.connect_client()
         sock_receiver, _ = self.connect_client()
         try:
-            send_and_wait_response(sock_sender, proto, CMD_CREATE_ACCOUNT, ["gina", hash_password("ginapw")])
-            send_and_wait_response(sock_sender, proto, CMD_LOGIN, ["gina", hash_password("ginapw")])
-            send_and_wait_response(sock_receiver, proto, CMD_CREATE_ACCOUNT, ["harry", hash_password("harrypw")])
-            send_and_wait_response(sock_receiver, proto, CMD_LOGIN, ["harry", hash_password("harrypw")])
+            send_and_wait_response(sock_sender, proto, CMD_CREATE_ACCOUNT, ["gina", "ginapw"])
+            send_and_wait_response(sock_sender, proto, CMD_LOGIN, ["gina", "ginapw"])
+            send_and_wait_response(sock_receiver, proto, CMD_CREATE_ACCOUNT, ["harry", "harrypw"])
+            send_and_wait_response(sock_receiver, proto, CMD_LOGIN, ["harry", "harrypw"])
             send_and_wait_response(sock_sender, proto, CMD_SEND_MESSAGE, ["harry", "Test delete message"])
             time.sleep(0.2)
             # Drain any asynchronous messages.
@@ -285,9 +283,9 @@ class TestChatServerCustom(unittest.TestCase):
         """
         sock, proto = self.connect_client()
         try:
-            send_and_wait_response(sock, proto, CMD_CREATE_ACCOUNT, ["ivy", hash_password("ivypw")])
+            send_and_wait_response(sock, proto, CMD_CREATE_ACCOUNT, ["ivy", "ivypw"])
             del_resp_cmd, del_resp_fields = send_and_wait_response(sock, proto, CMD_DELETE_ACCOUNT,
-                                                                   ["ivy", hash_password("ivypw")])
+                                                                   ["ivy", "ivypw"])
             self.assertIsNotNone(del_resp_cmd, "No response received for delete account")
             self.assertEqual(del_resp_fields[0], "OK")
             self.assertIn("Account deleted", del_resp_fields[1])
@@ -297,7 +295,7 @@ class TestChatServerCustom(unittest.TestCase):
         sock2, proto = self.connect_client()
         try:
             login_resp_cmd, login_resp_fields = send_and_wait_response(sock2, proto, CMD_LOGIN,
-                                                                       ["ivy", hash_password("ivypw")])
+                                                                       ["ivy", "ivypw"])
             self.assertIsNotNone(login_resp_cmd, "No response received for login attempt on deleted account")
             self.assertEqual(login_resp_fields[0], "ERROR", "Expected error when logging into a deleted account")
         finally:
@@ -344,7 +342,7 @@ class TestChatServerJSON(unittest.TestCase):
         sock, proto = self.connect_client()
         try:
             resp_cmd, resp_fields = send_and_wait_response(sock, proto, "CREATE_ACCOUNT",
-                                                            ["jack", hash_password("jackpw")])
+                                                            ["jack", "jackpw"])
             self.assertIsNotNone(resp_cmd, "No response received for create account")
             self.assertEqual(resp_fields[0], "OK")
             self.assertIn("Account created", resp_fields[1])
@@ -355,8 +353,8 @@ class TestChatServerJSON(unittest.TestCase):
         """Test successful login using JSON protocol."""
         sock, proto = self.connect_client()
         try:
-            send_and_wait_response(sock, proto, "CREATE_ACCOUNT", ["kate", hash_password("katepw")])
-            resp_cmd, resp_fields = send_and_wait_response(sock, proto, "LOGIN", ["kate", hash_password("katepw")])
+            send_and_wait_response(sock, proto, "CREATE_ACCOUNT", ["kate", "katepw"])
+            resp_cmd, resp_fields = send_and_wait_response(sock, proto, "LOGIN", ["kate", "katepw"])
             self.assertIsNotNone(resp_cmd, "No response received for login")
             self.assertEqual(resp_fields[0], "OK")
             self.assertIn("Login successful", resp_fields[1])
@@ -367,8 +365,8 @@ class TestChatServerJSON(unittest.TestCase):
         """Test login failure (wrong password) using JSON protocol."""
         sock, proto = self.connect_client()
         try:
-            send_and_wait_response(sock, proto, "CREATE_ACCOUNT", ["leo", hash_password("leopw")])
-            resp_cmd, resp_fields = send_and_wait_response(sock, proto, "LOGIN", ["leo", hash_password("badpw")])
+            send_and_wait_response(sock, proto, "CREATE_ACCOUNT", ["leo", "leopw"])
+            resp_cmd, resp_fields = send_and_wait_response(sock, proto, "LOGIN", ["leo", "badpw"])
             self.assertIsNotNone(resp_cmd, "No response received for login attempt")
             self.assertEqual(resp_fields[0], "ERROR")
             self.assertIn("Incorrect password", resp_fields[1])
@@ -380,7 +378,7 @@ class TestChatServerJSON(unittest.TestCase):
         for user, pwd in [("mia", "pw1"), ("nick", "pw2")]:
             sock, proto = self.connect_client()
             try:
-                send_and_wait_response(sock, proto, "CREATE_ACCOUNT", [user, hash_password(pwd)])
+                send_and_wait_response(sock, proto, "CREATE_ACCOUNT", [user, pwd])
             finally:
                 sock.close()
         sock, proto = self.connect_client()
@@ -399,10 +397,10 @@ class TestChatServerJSON(unittest.TestCase):
         sock_sender, proto = self.connect_client()
         sock_receiver, _ = self.connect_client()
         try:
-            send_and_wait_response(sock_sender, proto, "CREATE_ACCOUNT", ["oliver", hash_password("oliverpw")])
-            send_and_wait_response(sock_sender, proto, "LOGIN", ["oliver", hash_password("oliverpw")])
-            send_and_wait_response(sock_receiver, proto, "CREATE_ACCOUNT", ["paula", hash_password("paulapw")])
-            send_and_wait_response(sock_receiver, proto, "LOGIN", ["paula", hash_password("paulapw")])
+            send_and_wait_response(sock_sender, proto, "CREATE_ACCOUNT", ["oliver", "oliverpw"])
+            send_and_wait_response(sock_sender, proto, "LOGIN", ["oliver", "oliverpw"])
+            send_and_wait_response(sock_receiver, proto, "CREATE_ACCOUNT", ["paula", "paulapw"])
+            send_and_wait_response(sock_receiver, proto, "LOGIN", ["paula", "paulapw"])
             send_and_wait_response(sock_sender, proto, "SEND_MESSAGE", ["paula", "Hi Paula!"])
             time.sleep(0.2)
             drain_socket(sock_receiver, proto, drain_time=0.2)
@@ -421,10 +419,10 @@ class TestChatServerJSON(unittest.TestCase):
         sock_sender, proto = self.connect_client()
         sock_receiver, _ = self.connect_client()
         try:
-            send_and_wait_response(sock_sender, proto, "CREATE_ACCOUNT", ["quinn", hash_password("quinnpw")])
-            send_and_wait_response(sock_sender, proto, "LOGIN", ["quinn", hash_password("quinnpw")])
-            send_and_wait_response(sock_receiver, proto, "CREATE_ACCOUNT", ["rachel", hash_password("rachelpw")])
-            send_and_wait_response(sock_receiver, proto, "LOGIN", ["rachel", hash_password("rachelpw")])
+            send_and_wait_response(sock_sender, proto, "CREATE_ACCOUNT", ["quinn", "quinnpw"])
+            send_and_wait_response(sock_sender, proto, "LOGIN", ["quinn", "quinnpw"])
+            send_and_wait_response(sock_receiver, proto, "CREATE_ACCOUNT", ["rachel", "rachelpw"])
+            send_and_wait_response(sock_receiver, proto, "LOGIN", ["rachel", "rachelpw"])
             send_and_wait_response(sock_sender, proto, "SEND_MESSAGE", ["rachel", "Test deletion in JSON"])
             time.sleep(0.2)
             drain_socket(sock_receiver, proto, drain_time=0.2)
@@ -448,17 +446,16 @@ class TestChatServerJSON(unittest.TestCase):
         """Test deleting an account using JSON protocol."""
         sock, proto = self.connect_client()
         try:
-            send_and_wait_response(sock, proto, "CREATE_ACCOUNT", ["sam", hash_password("sampw")])
+            send_and_wait_response(sock, proto, "CREATE_ACCOUNT", ["sam", "sampw"])
             del_resp_cmd, del_resp_fields = send_and_wait_response(sock, proto, "DELETE_ACCOUNT",
-                                                                   ["sam", hash_password("sampw")])
+                                                                   ["sam", "sampw"])
             self.assertIsNotNone(del_resp_cmd, "No response received for delete account")
             self.assertEqual(del_resp_fields[0], "OK")
         finally:
             sock.close()
         sock2, proto = self.connect_client()
         try:
-            login_resp_cmd, login_resp_fields = send_and_wait_response(sock2, proto, "LOGIN",
-                                                                       ["sam", hash_password("sampw")])
+            login_resp_cmd, login_resp_fields = send_and_wait_response(sock2, proto, "LOGIN", ["sam", "sampw"])
             self.assertIsNotNone(login_resp_cmd, "No response received for login attempt on deleted account")
             self.assertEqual(login_resp_fields[0], "ERROR")
         finally:

@@ -338,7 +338,7 @@ class ChatServer:
                                     unread_count = len(account.messages)
                                     self.send_response(conn, f"Login successful. Unread messages: {unread_count}")
                     elif command == CMD_LIST_ACCOUNTS:
-                        pattern = fields[0] if fields else "*"
+                        pattern = fields[0] if fields and fields[0] != "" else "*"
                         with self.lock:
                             matching = [uname for uname in self.accounts if fnmatch.fnmatch(uname, pattern)]
                         self.send_response(conn, "Accounts list", *matching)
@@ -448,7 +448,7 @@ class ChatServer:
                                     unread_count = len(account.messages)
                                     self.send_response(conn, f"Login successful. Unread messages: {unread_count}")
                     elif command == "LIST_ACCOUNTS":
-                        pattern = fields[0] if fields else "*"
+                        pattern = fields[0] if fields and fields[0] != "" else "*"
                         with self.lock:
                             matching = [uname for uname in self.accounts if fnmatch.fnmatch(uname, pattern)]
                         self.send_response(conn, "Accounts list", *matching)

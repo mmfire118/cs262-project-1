@@ -1,38 +1,62 @@
-# Chat Application
+# Simple Client-Server Chat Application
 
-A simple Python chat application using a client-server model with two wire protocols (custom binary and JSON). The client features a basic Tkinter GUI.
+## Overview
+This project implements a client‑server chat application with the following features:
+- **Account Management:** Create accounts, log in, and delete accounts.
+- **Messaging:** Send, receive, list, read, and delete messages.
+- **Protocols:** Supports both a custom binary protocol and a JSON‑based protocol.
+- **GUI:** The client application uses a Tkinter‑based graphical interface.
 
-## Installation
+## Wire Protocols
+### Custom Binary Protocol
+- **Message Format:**
+  - 1 byte: Command code.
+  - 4 bytes: Payload length.
+  - Payload: One or more fields, each with:
+    - 2 bytes: Field length.
+    - Field data (UTF‑8 encoded).
 
+### JSON‑Based Protocol
+- **Message Format:**
+  - 4 bytes: Length of the JSON payload.
+  - JSON payload: A UTF‑8 encoded JSON string with keys `"command"` and `"fields"`.
+
+## File Structure
+Below is an example of the project tree:
 ```
-python3 -m venv venv
-source venv/bin/activate
+├── client.py
+├── notebook.md
+├── README.md
+├── server.py
+├── test_chat.py
+├── test_unit.py
+└── test_efficiency.py
 ```
+- `client.py`: Implements the chat client with a Tkinter‑based GUI. It handles login, account creation, sending messages, and more.
+- `server.py`: Implements the chat server that accepts multiple client connections, manages user accounts, and routes messages. It supports both protocols.
+- `test_chat.py`: Contains integration tests that simulate end‑to‑end interactions between clients and the server.
+- `test_unit.py`: Contains unit tests for lower‑level functions such as the password hashing function and the protocol (encoding/decoding) classes.
+- `test_efficiency.py`: Compares the size of messages sent using the custom binary protocol and the JSON protocol.
 
-## Usage
 
-Server (custom binary protocol)
+## Running the Application
+### Client
+```bash
+python3 client.py --host localhost --port 12345 --protocol custom
+python3 client.py --host localhost --port 12345 --protocol json
 ```
+### Server
+```bash
 python3 server.py --host localhost --port 12345 --protocol custom
-```
-
-Server (JSON protocol)
-```
 python3 server.py --host localhost --port 12345 --protocol json
 ```
 
-Client (custom binary protocol)
+## Running Tests
+### Integration Tests
+```bash
+python3 -m unittest test_chat.py
 ```
-python3 client.py --host localhost --port 12345 --protocol custom
-```
-
-Client (JSON protocol)
-```
-python3 client.py --host localhost --port 12345 --protocol json
-```
-
-## Tests
-
-```
-python3 test_chat.py
+### Unit Tests
+```bash
+python3 -m unittest test_unit.py
 ```

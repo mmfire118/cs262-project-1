@@ -1,6 +1,7 @@
 # Engineering Notebook
 
 **Project Title:** Chat App
+
 **By:** Miles Pines and William Zhang
 
 ---
@@ -106,6 +107,7 @@ if __name__ == '__main__':
     print("Message sizes for account creation:")
     print("Custom Binary Protocol size: {} bytes".format(custom_size))
     print("JSON Protocol size: {} bytes".format(json_size))
+```
 
 We see that the output:
 ```
@@ -114,3 +116,35 @@ Custom Binary Protocol size: 81 bytes
 JSON Protocol size: 125 bytes
 ```
 shows our custom binary protocol is a slightly better size than the JSON protocol. This makes sense because the JSON protocol has additional overhead to make the key value pairs human-readable. In contrast, our custom binary protocol is shorter with less readability.
+
+- **Custom Binary Protocol**:  
+  - Compact and efficient  
+  - Uses fixed-length headers and fields  
+  - Lower overhead
+
+- **JSON Protocol**:  
+  - Human-readable and easier to debug  
+  - Adds extra bytes due to JSON formatting  
+  - More flexible for future changes
+
+## Efficiency
+- **Custom**:  
+  - Smaller messages (~81 bytes)  
+  - Lower bandwidth usage, faster in high-load scenarios
+
+- **JSON**:  
+  - Larger messages (~125 bytes)  
+  - Uses more bandwidth because of extra JSON structure
+
+## Scalability
+- **Custom**:  
+  - Better for scaling up; less CPU and network usage  
+  - More work to implement and maintain
+
+- **JSON**:  
+  - Easier to integrate and extend  
+  - Overhead might be an issue at very high loads
+
+## Takeaway
+- Use **Custom Binary Protocol** if performance and low latency are critical.
+- Use **JSON Protocol** if ease of development and flexibility are more important.

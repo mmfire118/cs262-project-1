@@ -107,18 +107,33 @@ class CustomProtocol:
         if not header:
             return None, None
         command, length = struct.unpack('!BI', header)
+
         payload = self.recvall(sock, length)
+        if payload is None:
+            # recvall returned None, meaning the connection closed or we couldn't get 'length' bytes
+            return None, None
+
+        # If we got fewer bytes than 'length', it's also malformed or incomplete:
+        if len(payload) < length:
+            return None, None
+
+        # Now parse the fields
         fields = []
         offset = 0
         while offset < len(payload):
+            # read each field
             if offset + 2 > len(payload):
-                break
+                return None, None
             field_len = struct.unpack('!H', payload[offset:offset+2])[0]
             offset += 2
+            if offset + field_len > len(payload):
+                return None, None
             field = payload[offset:offset+field_len].decode('utf-8')
             offset += field_len
             fields.append(field)
+
         return command, fields
+
 
 class JSONProtocol:
     """

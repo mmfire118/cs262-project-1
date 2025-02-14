@@ -25,6 +25,7 @@ This project implements a client‑server chat application with the following fe
 Below is an example of the project tree:
 ```
 ├── client.py
+├── design.md
 ├── notebook.md
 ├── README.md
 ├── server.py

@@ -126,7 +126,35 @@ or for new clients, run:
 python grpc_client.py --servers localhost:50051,localhost:50052,localhost:50053,localhost:50054
 ```
 
----
+### Running on Multiple Machines with ngrok
+
+If you need to run instances of the chat server on different machines that are behind NATs or firewalls, you can use [ngrok](https://ngrok.com) to forward the gRPC ports to a public endpoint. Here’s how to set it up as an example with Machines A, B, and C:
+
+1. **Install ngrok**  
+   Download and install ngrok from [ngrok.com/download](https://ngrok.com/download).
+
+2. **Expose the server port with ngrok**
+   In a separate terminal on all machines, forward the gRPC port:
+   ```bash
+   ngrok tcp 50051
+   ```
+   This command will output a public forwarding address (e.g., `0.tcp.ngrok.io:12345`, do not include the `tcp://` header). Use this address in the `--replicas` list on the other machines and when starting the client.
+  
+3. **Start the gRPC server**  
+   For example, on Machine A run:
+   ```bash
+   python grpc_server.py --host localhost --port 50051 --db_file chat_serverA.db --replicas <MachineB_Public_Address>,<MachineC_Public_Address>
+   ```
+   Do this respectively for all machines.
+
+5. **Configure the client**
+   When starting the client, use the ngrok forwarding addresses for all servers:
+   ```bash
+   python grpc_client.py --servers <MachineA_Public_Address>,<MachineB_Public_Address>,<MachineC_Public_Address>
+   ```
+
+Keep the ngrok sessions active while your servers are running. This setup ensures that the gRPC communication (including replication and dynamic state transfer) works across different networks.
+
 
 ## Project Structure
 

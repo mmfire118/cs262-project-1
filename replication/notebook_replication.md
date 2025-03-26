@@ -45,6 +45,25 @@ For this assignment, we took our earlier chat application design and made the ba
 
 ---
 
+### Fault Tolerance, Load-Balancing, and Failover
+
+- **2-Fault Tolerance**  
+  With three replicas in our system, we ensure that the service remains operational even if up to two nodes fail. Every write operation is replicated across all servers so that if one or two replicas become unresponsive, the remaining server(s) still hold all critical data. This redundancy minimizes the risk of data loss and service interruption.
+
+- **Failure Handling & Recovery**  
+  Our replication protocol actively propagates operations to all replica addresses. When a server fails or a network glitch occurs, errors are logged, and the system continues to process operations on the remaining healthy nodes. Furthermore, if a failed replica is restarted or a new replica is added, it uses the `TransferState` RPC to synchronize its state with the latest snapshot, ensuring a seamless recovery without downtime.
+
+- **Dynamic Load-Balancing and Failover**  
+  On the client side, a simple round-robin strategy is implemented in the `retry_rpc` function. This mechanism rotates through the available replicas and automatically skips servers marked as temporarily offline. By dynamically switching to responsive servers, the client maintains consistent performance and balances the load across all replicas.
+
+- **Monitoring and Heartbeats**  
+  A continuous heartbeat mechanism is employed to monitor server availability. Each client sends periodic heartbeats to the server, and if a heartbeat is missed, the corresponding server is temporarily marked as unavailable. This real-time monitoring enables rapid detection of failures, allowing the client to re-route requests to operational replicas promptly.
+
+- **Graceful Degradation**  
+  In scenarios where multiple failures occur, our design ensures graceful degradation. The service continues to function using the available replicas while persisting data locally via SQLite. Once connectivity or additional replicas are restored, the system synchronizes the state, maintaining overall consistency and data integrity.
+
+---
+
 ### Observations & Outcomes
 
 - **Persistence Achieved**  

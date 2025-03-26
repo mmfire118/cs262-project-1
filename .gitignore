@@ -57,3 +57,5 @@ coverage.xml
 
 # Environment variables
 .env
+
+*.db
